@@ -1,0 +1,84 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: plane-app
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: plane
+    app.kubernetes.io/part-of: plane
+spec:
+  chart: https://github.com/makeplane/helm-charts/releases/download/plane-ce-1.6.2/plane-ce-1.6.2.tgz
+  targetNamespace: plane
+  createNamespace: false
+  failurePolicy: abort
+  backOffLimit: 3
+  timeout: 15m
+  valuesContent: |-
+    planeVersion: v1.4.1
+
+    ingress:
+      # Chart 1.6.2 always renders its Traefik route on websecure, even when
+      # TLS is disabled. HTTP routing is managed by plane-ingress.yaml.
+      enabled: false
+      appHost: work.local
+      minioHost: ""
+      rabbitmqHost: ""
+      ingressClass: traefik
+      traefik:
+        maxRequestBodyBytes: 20971520
+
+    ssl:
+      createIssuer: false
+      generateCerts: false
+      tls_secret_name: ""
+
+    postgres:
+      storageClass: local-path
+      volumeSize: 5Gi
+
+    redis:
+      storageClass: local-path
+      volumeSize: 512Mi
+
+    rabbitmq:
+      storageClass: local-path
+      volumeSize: 1Gi
+
+    minio:
+      storageClass: local-path
+      volumeSize: 5Gi
+
+    web:
+      pullPolicy: IfNotPresent
+    space:
+      pullPolicy: IfNotPresent
+    admin:
+      pullPolicy: IfNotPresent
+    live:
+      pullPolicy: IfNotPresent
+    api:
+      pullPolicy: IfNotPresent
+      annotations:
+        deployment.plane.local/managed: "true"
+    worker:
+      pullPolicy: IfNotPresent
+      # Celery auto-detects all 16 host CPUs and its prefork pool exceeds the
+      # chart's 1000Mi default during startup on this node.
+      memoryRequest: 512Mi
+      memoryLimit: 3Gi
+      cpuRequest: 100m
+      cpuLimit: 2000m
+    beatworker:
+      pullPolicy: IfNotPresent
+
+    env:
+      doc_upload_size_limit: "20971520"
+      api_key_rate_limit: "120/minute"
+      cors_allowed_origins: "http://work.localhost,https://work.localhost"
+
+    external_secrets:
+      rabbitmq_existingSecret: plane-runtime-rabbitmq
+      pgdb_existingSecret: plane-runtime-postgres
+      doc_store_existingSecret: plane-runtime-doc-store
+      app_env_existingSecret: plane-runtime-app
+      live_env_existingSecret: plane-runtime-live
